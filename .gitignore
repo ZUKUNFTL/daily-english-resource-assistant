@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+
+# Build outputs
+build/
+dist/
+dist_*/
+*.spec
+
+# Local application state and generated assets
+data/
+outputs/
+resources/
+work/
+*.log
+
+# Downloaded engines, environments, and models
+engine/pyvideotrans/
+engine/argos_translate/.venv/
+
+# Online regression media is not redistributed
+tests/fixtures/online/
+tests/fixtures/online_samples.json
+
+# Editors and OS files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
