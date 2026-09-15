@@ -11,6 +11,8 @@ __pycache__/
 build/
 dist/
 dist_*/
+dist-*/
+installer-output/
 *.spec
 
 # Local application state and generated assets

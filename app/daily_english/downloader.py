@@ -14,6 +14,8 @@ from urllib.parse import parse_qs, quote, urlparse
 import imageio_ffmpeg
 import requests
 
+from .processes import hidden_subprocess_kwargs
+
 
 class DownloadError(RuntimeError):
     pass
@@ -300,7 +302,10 @@ class YtDlpDownloader(MediaDownloader):
             command = [ffmpeg, "-y", "-i", str(source), "-vn", "-codec:a", "libmp3lame", "-q:a", "3", str(destination)]
         else:
             command = [ffmpeg, "-y", "-i", str(source), "-c:v", "libx264", "-c:a", "aac", "-movflags", "+faststart", str(destination)]
-        result = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", errors="replace")
+        result = subprocess.run(
+            command, capture_output=True, text=True, encoding="utf-8", errors="replace",
+            **hidden_subprocess_kwargs(),
+        )
         if result.returncode:
             raise DownloadError(f"媒体格式转换失败：{result.stderr[-800:]}")
         if source != destination and source.exists():

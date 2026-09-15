@@ -4,7 +4,6 @@ import json
 import os
 import re
 import subprocess
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -13,6 +12,8 @@ from typing import Callable
 import imageio_ffmpeg
 
 from .models import Caption
+from .processes import hidden_subprocess_kwargs
+from .settings import DATA_ROOT, PROJECT_ROOT
 from .subtitles import read_srt
 
 
@@ -36,14 +37,21 @@ class EngineRunner:
     """Run pyVideoTrans as an isolated Python 3.10 sidecar process."""
 
     def __init__(self, project_root: str | Path | None = None) -> None:
-        default_root = Path(__file__).resolve().parents[2]
-        if getattr(sys, "frozen", False):
-            packaged_project = Path(sys.executable).resolve().parents[2]
-            if (packaged_project / "engine").exists():
-                default_root = packaged_project
-        self.root = Path(project_root or os.environ.get("TRANSLATION_APP_ROOT", default_root))
+        self.root = Path(project_root or os.environ.get("TRANSLATION_APP_ROOT", PROJECT_ROOT))
+        self.data_root = Path(
+            self.root if project_root is not None
+            else os.environ.get("TRANSLATION_APP_DATA_ROOT", DATA_ROOT)
+        )
         self.engine_root = self.root / "engine" / "pyvideotrans"
         self.manifest_path = self.root / "engine" / "pyvideotrans.lock.json"
+
+    @property
+    def cache_root(self) -> Path:
+        return self.data_root / "work" / "cache"
+
+    @property
+    def temporary_root(self) -> Path:
+        return self.data_root / "work" / "tmp"
 
     @property
     def python_path(self) -> Path:
@@ -107,7 +115,7 @@ class EngineRunner:
             return read_srt(self._find_srt(directory), bilingual=False)
 
     def _temporary_directory(self, prefix: str) -> TemporaryDirectory:
-        directory = self.root / "work" / "tmp"
+        directory = self.temporary_root
         directory.mkdir(parents=True, exist_ok=True)
         return TemporaryDirectory(prefix=prefix, dir=directory)
 
@@ -119,18 +127,18 @@ class EngineRunner:
         environment = os.environ.copy()
         environment["PYTHONUNBUFFERED"] = "1"
         environment["PYTHONIOENCODING"] = "utf-8"
-        cache_root = self.root / "work" / "cache"
+        cache_root = self.cache_root
         cache_root.mkdir(parents=True, exist_ok=True)
         environment["HF_HOME"] = str(cache_root / "huggingface")
         environment["HUGGINGFACE_HUB_CACHE"] = str(cache_root / "huggingface" / "hub")
         environment["TRANSFORMERS_CACHE"] = str(cache_root / "huggingface" / "transformers")
         environment["TORCH_HOME"] = str(cache_root / "torch")
         environment["XDG_CACHE_HOME"] = str(cache_root)
-        environment["TEMP"] = str(self.root / "work" / "tmp")
-        environment["TMP"] = str(self.root / "work" / "tmp")
+        environment["TEMP"] = str(self.temporary_root)
+        environment["TMP"] = str(self.temporary_root)
         Path(environment["TEMP"]).mkdir(parents=True, exist_ok=True)
         Path(environment["TMP"]).mkdir(parents=True, exist_ok=True)
-        bundled_ffmpeg = self.root / "work" / "tools" / "ffmpeg.exe"
+        bundled_ffmpeg = self.data_root / "work" / "tools" / "ffmpeg.exe"
         ffmpeg_directory = str(bundled_ffmpeg.parent) if bundled_ffmpeg.exists() else str(Path(imageio_ffmpeg.get_ffmpeg_exe()).parent)
         environment["PATH"] = ffmpeg_directory + os.pathsep + environment.get("PATH", "")
         output_lines: list[str] = []
@@ -138,6 +146,7 @@ class EngineRunner:
             process = subprocess.Popen(
                 command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
                 encoding="utf-8", errors="replace", env=environment, bufsize=1,
+                **hidden_subprocess_kwargs(),
             )
         except OSError as error:
             raise RuntimeError(f"无法启动 pyVideoTrans：{error}") from error

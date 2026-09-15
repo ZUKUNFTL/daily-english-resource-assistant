@@ -23,8 +23,26 @@ if ($InstallDependencies) {
 
 Set-Location $projectRoot
 $resolvedDistPath = if ([System.IO.Path]::IsPathRooted($DistPath)) { $DistPath } else { Join-Path $projectRoot $DistPath }
-& $python -m PyInstaller --noconfirm --clean --windowed --distpath $resolvedDistPath --name "每日英语听力资源助手" --paths app --add-data "LICENSE;." --add-data "THIRD_PARTY_LICENSES.md;." --add-data "licenses;licenses" app_launcher.py
+$applicationName = "每日英语听力资源助手"
+& $python -m PyInstaller --noconfirm --clean --windowed --distpath $resolvedDistPath --name $applicationName --paths app --collect-data faster_whisper --add-data "LICENSE;." --add-data "THIRD_PARTY_LICENSES.md;." --add-data "licenses;licenses" app_launcher.py
 if ($LASTEXITCODE -ne 0) {
     throw "PyInstaller 构建失败，退出码：$LASTEXITCODE"
 }
-Write-Host "Build completed: $resolvedDistPath/每日英语听力资源助手/每日英语听力资源助手.exe"
+
+$applicationRoot = Join-Path $resolvedDistPath $applicationName
+$executablePath = Join-Path $applicationRoot "$applicationName.exe"
+$requiredRuntimeFiles = @(
+    (Join-Path $applicationRoot "_internal\faster_whisper\assets\silero_vad_v6.onnx")
+)
+
+if (-not (Test-Path -LiteralPath $executablePath -PathType Leaf)) {
+    throw "构建产物缺少主程序：$executablePath"
+}
+
+foreach ($runtimeFile in $requiredRuntimeFiles) {
+    if (-not (Test-Path -LiteralPath $runtimeFile -PathType Leaf)) {
+        throw "构建产物缺少运行资源：$runtimeFile"
+    }
+}
+
+Write-Host "Build completed: $executablePath"
