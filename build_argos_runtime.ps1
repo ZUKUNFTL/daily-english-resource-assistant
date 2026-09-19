@@ -1,4 +1,4 @@
-param(
+﻿param(
     [switch]$InstallDependencies,
     [string]$DistPath = "build\installer-runtime"
 )

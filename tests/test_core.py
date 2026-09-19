@@ -17,6 +17,15 @@ from daily_english import settings as application_settings
 from daily_english.subtitles import read_srt, validate, write_srt
 
 
+def test_powershell_scripts_use_windows_compatible_utf8_bom() -> None:
+    project_root = Path(__file__).resolve().parents[1]
+    scripts = sorted(project_root.glob("*.ps1")) + sorted((project_root / "engine").glob("*.ps1"))
+
+    assert scripts
+    for script in scripts:
+        assert script.read_bytes().startswith(b"\xef\xbb\xbf"), script
+
+
 def test_srt_round_trip(tmp_path: Path) -> None:
     captions = [
         Caption(0.0, 1.2, "Hello.", "你好。"),

@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$Version = "",
     [switch]$SkipApplicationBuild,
     [switch]$SkipArgosBuild
