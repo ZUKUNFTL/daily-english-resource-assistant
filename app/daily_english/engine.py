@@ -4,6 +4,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -71,7 +72,18 @@ class EngineRunner:
             except json.JSONDecodeError:
                 version = ""
         available = self.python_path.exists() and self.cli_path.exists()
-        message = "sidecar 可用" if available else "未安装 pyVideoTrans sidecar；可使用轻量本地转写，或运行 engine/setup_sidecar.ps1"
+        if available:
+            message = "当前使用 pyVideoTrans sidecar（支持 WhisperX/词级对齐）"
+        elif getattr(sys, "frozen", False):
+            message = (
+                "当前使用内置 faster-whisper + Argos Translate，可直接转写并生成双语字幕；"
+                "WhisperX/词级对齐属于可选增强，当前未安装。"
+            )
+        else:
+            message = (
+                "当前使用内置 faster-whisper + Argos Translate，可直接转写并生成双语字幕；"
+                "如需 WhisperX/词级对齐，可运行 engine/setup_sidecar.ps1 安装可选 sidecar。"
+            )
         return EngineStatus(available, str(self.python_path), str(self.cli_path), version, message)
 
     def _require(self) -> None:

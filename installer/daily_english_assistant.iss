@@ -2,7 +2,7 @@
   #error ProjectRoot must be supplied by build_installer.ps1
 #endif
 #ifndef AppVersion
-  #define AppVersion "0.1.2"
+  #define AppVersion "0.1.3"
 #endif
 
 #define AppName "每日英语听力资源助手"

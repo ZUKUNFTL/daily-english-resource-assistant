@@ -21,7 +21,7 @@
 发布版提供一个可直接运行的 Windows 安装程序：
 
 ```text
-DailyEnglishResourceAssistant-Setup-0.1.2.exe
+DailyEnglishResourceAssistant-Setup-0.1.3.exe
 ```
 
 双击后按向导安装即可。安装程序会安装主程序、开始菜单和可选桌面快捷方式，并自带中英 Argos 离线翻译运行时与模型；目标电脑不需要安装 Git、Python 或开发依赖。默认安装到当前用户的：
@@ -168,7 +168,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\build_installer.ps1
 脚本会重新构建桌面程序、生成独立 Argos 运行时，并把中英翻译模型及 Whisper `small`、`medium` 模型合并为单文件安装程序。构建机尚未缓存这些模型时，脚本会先自动下载：
 
 ```text
-installer-output\DailyEnglishResourceAssistant-Setup-0.1.2.exe
+installer-output\DailyEnglishResourceAssistant-Setup-0.1.3.exe
 ```
 
 如果主程序和 Argos 独立运行时已经构建完成，可以跳过对应步骤以缩短重复打包时间：
@@ -180,7 +180,7 @@ installer-output\DailyEnglishResourceAssistant-Setup-0.1.2.exe
 版本默认读取 `pyproject.toml`；发布时也可显式指定四段以内的数字版本：
 
 ```powershell
-.\build_installer.ps1 -Version 0.1.2
+.\build_installer.ps1 -Version 0.1.3
 ```
 
 ### 9. 运行编译后的程序

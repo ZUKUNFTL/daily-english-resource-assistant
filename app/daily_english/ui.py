@@ -664,7 +664,13 @@ class ImportTab(QWidget):
 
     def refresh_engine_status(self) -> None:
         status = EngineRunner().status()
-        self.engine_status.setText(("可用：" if status.available else "未安装：") + status.message)
+        self.engine_status.setText(status.message)
+        self.alignment.setEnabled(status.available)
+        if status.available:
+            self.alignment.setToolTip("使用 pyVideoTrans sidecar 执行 WhisperX/词级对齐。")
+        else:
+            self.alignment.setChecked(False)
+            self.alignment.setToolTip("安装可选 pyVideoTrans sidecar 后才能启用 WhisperX/词级对齐。")
 
     def _update_target_language(self) -> None:
         source = self.source_language.currentData()

@@ -212,6 +212,28 @@ def test_engine_parses_model_download_and_stt_progress() -> None:
     assert "75.0%" in message
 
 
+def test_frozen_app_describes_builtin_engine_as_ready(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+
+    status = EngineRunner(project_root=tmp_path).status()
+
+    assert status.available is False
+    assert "当前使用内置 faster-whisper + Argos Translate" in status.message
+    assert "可直接转写并生成双语字幕" in status.message
+    assert "setup_sidecar.ps1" not in status.message
+    assert "未安装 pyVideoTrans" not in status.message
+
+
+def test_source_app_explains_optional_sidecar_setup(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.delattr(sys, "frozen", raising=False)
+
+    status = EngineRunner(project_root=tmp_path).status()
+
+    assert status.available is False
+    assert "可选 sidecar" in status.message
+    assert "engine/setup_sidecar.ps1" in status.message
+
+
 def test_whisper_model_uses_local_cache_without_network(tmp_path: Path, monkeypatch) -> None:
     calls = []
     messages = []

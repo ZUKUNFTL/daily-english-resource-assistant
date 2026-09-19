@@ -58,7 +58,7 @@ installer-output\DailyEnglishResourceAssistant-Setup-<版本>.exe
 .\build_installer.ps1 -SkipApplicationBuild -SkipArgosBuild
 ```
 
-版本默认读取 `pyproject.toml`，也可用 `-Version 0.1.2` 指定。Inno Setup 的命令行编译器会从常见的当前用户或系统安装目录自动查找；找不到时脚本会给出安装命令。
+版本默认读取 `pyproject.toml`，也可用 `-Version 0.1.3` 指定。Inno Setup 的命令行编译器会从常见的当前用户或系统安装目录自动查找；找不到时脚本会给出安装命令。
 
 安装版默认写入：
 
