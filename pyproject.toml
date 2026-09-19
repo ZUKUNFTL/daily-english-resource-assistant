@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "daily-english-assistant"
-version = "0.1.1"
+version = "0.1.2"
 description = "Windows desktop resource assistant for Daily English Listening uploads"
 license = {text = "GPL-3.0; see THIRD_PARTY_LICENSES.md"}
 requires-python = ">=3.11"

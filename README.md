@@ -21,7 +21,7 @@
 发布版提供一个可直接运行的 Windows 安装程序：
 
 ```text
-DailyEnglishResourceAssistant-Setup-0.1.1.exe
+DailyEnglishResourceAssistant-Setup-0.1.2.exe
 ```
 
 双击后按向导安装即可。安装程序会安装主程序、开始菜单和可选桌面快捷方式，并自带中英 Argos 离线翻译运行时与模型；目标电脑不需要安装 Git、Python 或开发依赖。默认安装到当前用户的：
@@ -30,7 +30,7 @@ DailyEnglishResourceAssistant-Setup-0.1.1.exe
 %LOCALAPPDATA%\Programs\DailyEnglishResourceAssistant
 ```
 
-安装包已经内置默认的 Whisper `small` 模型，新电脑无需连接模型站点即可直接转写。`medium` 和 `large-v3` 体积较大，仍会在第一次使用时下载，之后从本机缓存加载。安装程序当前未做商业代码签名，Windows SmartScreen 可能显示“未知发布者”；请从可信的项目发布页获取，并在需要时核对发布页提供的 SHA-256。
+安装包已经内置 Whisper `small` 和 `medium` 模型，新电脑无需连接模型站点即可直接使用这两个模型。`large-v3` 体积较大，仍会在第一次使用时下载，之后从本机缓存加载。安装程序当前未做商业代码签名，Windows SmartScreen 可能显示“未知发布者”；请从可信的项目发布页获取，并在需要时核对发布页提供的 SHA-256。
 
 可在 Windows“设置 → 应用 → 已安装的应用”中卸载。为避免误删用户成果，卸载程序会保留资料库、设置、已下载的 Whisper 模型和导出文件。
 
@@ -165,10 +165,10 @@ winget install --id JRSoftware.InnoSetup -e --source winget
 powershell -NoProfile -ExecutionPolicy Bypass -File .\build_installer.ps1
 ```
 
-脚本会重新构建桌面程序、生成独立 Argos 运行时，并把中英翻译模型及默认 Whisper `small` 模型合并为单文件安装程序。构建机尚未缓存 `small` 时，脚本会先自动下载：
+脚本会重新构建桌面程序、生成独立 Argos 运行时，并把中英翻译模型及 Whisper `small`、`medium` 模型合并为单文件安装程序。构建机尚未缓存这些模型时，脚本会先自动下载：
 
 ```text
-installer-output\DailyEnglishResourceAssistant-Setup-0.1.1.exe
+installer-output\DailyEnglishResourceAssistant-Setup-0.1.2.exe
 ```
 
 如果主程序和 Argos 独立运行时已经构建完成，可以跳过对应步骤以缩短重复打包时间：
@@ -180,7 +180,7 @@ installer-output\DailyEnglishResourceAssistant-Setup-0.1.1.exe
 版本默认读取 `pyproject.toml`；发布时也可显式指定四段以内的数字版本：
 
 ```powershell
-.\build_installer.ps1 -Version 0.1.1
+.\build_installer.ps1 -Version 0.1.2
 ```
 
 ### 9. 运行编译后的程序
@@ -209,7 +209,7 @@ $shortcut.Save()
 
 ## 模型、缓存与本地数据
 
-- 普通 onedir EXE 不包含 Whisper 模型；一键安装程序内置默认 `small`。`medium` 和 `large-v3` 只在首次使用或在“模型管理”页主动下载时联网，之后直接读取本地缓存。
+- 普通 onedir EXE 不包含 Whisper 模型；一键安装程序内置 `small` 和 `medium`。`large-v3` 只在首次使用或在“模型管理”页主动下载时联网，之后直接读取本地缓存。
 - 源码版和仓库内 `dist` 的默认模型缓存：`work\cache\huggingface\hub`。
 - 安装版的默认模型缓存：`%LOCALAPPDATA%\DailyEnglishResourceAssistant\work\cache\huggingface\hub`。
 - 当前三个模型大约占用：`small` 464 MB、`medium` 1.43 GB、`large-v3` 2.88 GB。
@@ -217,7 +217,7 @@ $shortcut.Save()
 - 源码版设置和资料库：`data\settings.json`、`data\library.sqlite3`；安装版位于 `%LOCALAPPDATA%\DailyEnglishResourceAssistant\data`。
 - 输出、缓存、模型和本地数据库都不进入 Git。重新构建 EXE 不会删除这些数据。
 
-编译后的程序放在当前仓库的 `dist` 中运行时，会与源码版共用上述模型和数据。如果把 `dist` 文件夹单独复制到另一台电脑，Whisper 可以重新下载模型，但 Argos 翻译环境不会自动随该 onedir 目录复制；面向普通用户分发时请使用 `build_installer.ps1` 生成的安装程序，它已经包含独立 Argos 运行时、中英模型和默认 Whisper `small` 模型。
+编译后的程序放在当前仓库的 `dist` 中运行时，会与源码版共用上述模型和数据。如果把 `dist` 文件夹单独复制到另一台电脑，Whisper 可以重新下载模型，但 Argos 翻译环境不会自动随该 onedir 目录复制；面向普通用户分发时请使用 `build_installer.ps1` 生成的安装程序，它已经包含独立 Argos 运行时、中英模型，以及 Whisper `small` 和 `medium` 模型。
 
 ## 更新与重新构建
 
@@ -245,7 +245,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\build_windows.ps1
 
 ### 第一次转写耗时较长
 
-安装版的 `small` 已经内置，无需首次下载。`medium` 或 `large-v3` 第一次使用时需要下载；程序会使用较长超时并自动重试，成功后显示“正在从本地缓存加载”，不会重复下载。大模型从磁盘加载本身仍需要一些时间。
+安装版的 `small` 和 `medium` 已经内置，无需首次下载。`large-v3` 第一次使用时需要下载；程序会使用较长超时并自动重试，成功后显示“正在从本地缓存加载”，不会重复下载。大模型从磁盘加载本身仍需要一些时间。
 
 ### 构建时提示目录被占用
 

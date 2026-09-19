@@ -12,10 +12,14 @@ $argosModels = Join-Path $projectRoot "work\models\argos"
 $argosData = Join-Path $projectRoot "work\data\argos-translate"
 $whisperHubCache = Join-Path $projectRoot "work\cache\huggingface\hub"
 $whisperSmallCache = Join-Path $whisperHubCache "models--Systran--faster-whisper-small"
+$whisperMediumCache = Join-Path $whisperHubCache "models--Systran--faster-whisper-medium"
 $installerScript = Join-Path $projectRoot "installer\daily_english_assistant.iss"
 
-function Test-WhisperSmallCache {
-    param([string]$RepositoryPath)
+function Test-WhisperModelCache {
+    param(
+        [string]$RepositoryPath,
+        [long]$MinimumModelSize
+    )
     $mainReference = Join-Path $RepositoryPath "refs\main"
     if (-not (Test-Path -LiteralPath $mainReference -PathType Leaf)) { return $false }
     $revision = (Get-Content -LiteralPath $mainReference -Raw).Trim()
@@ -24,7 +28,7 @@ function Test-WhisperSmallCache {
     foreach ($file in @("config.json", "model.bin", "tokenizer.json", "vocabulary.txt")) {
         if (-not (Test-Path -LiteralPath (Join-Path $snapshot $file) -PathType Leaf)) { return $false }
     }
-    return (Get-Item -LiteralPath (Join-Path $snapshot "model.bin")).Length -gt 100MB
+    return (Get-Item -LiteralPath (Join-Path $snapshot "model.bin")).Length -gt $MinimumModelSize
 }
 
 if (-not $Version) {
@@ -59,18 +63,24 @@ if (-not (Test-Path -LiteralPath $argosData -PathType Container)) {
     throw "缺少 Argos 运行数据。请先运行一次 engine/setup_argos.ps1。"
 }
 
-if (-not (Test-WhisperSmallCache $whisperSmallCache)) {
+if (-not (Test-WhisperModelCache $whisperSmallCache 100MB) -or
+    -not (Test-WhisperModelCache $whisperMediumCache 500MB)) {
     $applicationPython = Join-Path $projectRoot ".venv\Scripts\python.exe"
     if (-not (Test-Path -LiteralPath $applicationPython -PathType Leaf)) {
-        throw "缺少主程序 Python 环境，无法准备内置 small 模型。请先运行 setup_windows.ps1。"
+        throw "缺少主程序 Python 环境，无法准备内置 Whisper 模型。请先运行 setup_windows.ps1。"
     }
-    Write-Host "Downloading the bundled faster-whisper small model..."
     $env:DAILY_ENGLISH_WHISPER_CACHE = $whisperHubCache
-    & $applicationPython -c "import os; from faster_whisper.utils import download_model; print(download_model('small', cache_dir=os.environ['DAILY_ENGLISH_WHISPER_CACHE']))"
-    if ($LASTEXITCODE -ne 0) { throw "内置 small 模型下载失败。" }
+    foreach ($modelName in @("small", "medium")) {
+        Write-Host "Preparing the bundled faster-whisper $modelName model..."
+        & $applicationPython -c "import os, sys; from faster_whisper.utils import download_model; print(download_model(sys.argv[1], cache_dir=os.environ['DAILY_ENGLISH_WHISPER_CACHE']))" $modelName
+        if ($LASTEXITCODE -ne 0) { throw "内置 $modelName 模型下载失败。" }
+    }
 }
-if (-not (Test-WhisperSmallCache $whisperSmallCache)) {
+if (-not (Test-WhisperModelCache $whisperSmallCache 100MB)) {
     throw "small 模型缓存不完整，无法构建可离线使用的安装包：$whisperSmallCache"
+}
+if (-not (Test-WhisperModelCache $whisperMediumCache 500MB)) {
+    throw "medium 模型缓存不完整，无法构建可离线使用的安装包：$whisperMediumCache"
 }
 
 $isccCandidates = @(

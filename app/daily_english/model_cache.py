@@ -105,7 +105,7 @@ def resolve_faster_whisper_model(model_name: str, cache_root: str | Path, progre
                     pass
         raise RuntimeError(
             f"{model_name} 模型首次下载失败（已重试 3 次）：{last_error}\n"
-            "请检查当前网络能否访问 huggingface.co，或改用已内置 small 模型的最新版安装包。"
+            "请检查当前网络能否访问 huggingface.co，或改用已内置 small/medium 模型的最新版安装包。"
         ) from last_error
 
 

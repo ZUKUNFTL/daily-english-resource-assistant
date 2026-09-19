@@ -2,7 +2,7 @@
   #error ProjectRoot must be supplied by build_installer.ps1
 #endif
 #ifndef AppVersion
-  #define AppVersion "0.1.1"
+  #define AppVersion "0.1.2"
 #endif
 
 #define AppName "每日英语听力资源助手"
@@ -46,6 +46,7 @@ Source: "{#ProjectRoot}\build\installer-runtime\argos_translate\*"; DestDir: "{a
 Source: "{#ProjectRoot}\work\models\argos\*"; DestDir: "{localappdata}\DailyEnglishResourceAssistant\work\models\argos"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#ProjectRoot}\work\data\argos-translate\*"; DestDir: "{localappdata}\DailyEnglishResourceAssistant\work\data\argos-translate"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#ProjectRoot}\work\cache\huggingface\hub\models--Systran--faster-whisper-small\*"; DestDir: "{localappdata}\DailyEnglishResourceAssistant\work\cache\huggingface\hub\models--Systran--faster-whisper-small"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#ProjectRoot}\work\cache\huggingface\hub\models--Systran--faster-whisper-medium\*"; DestDir: "{localappdata}\DailyEnglishResourceAssistant\work\cache\huggingface\hub\models--Systran--faster-whisper-medium"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Dirs]
 Name: "{localappdata}\DailyEnglishResourceAssistant\data"
