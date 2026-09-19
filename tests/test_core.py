@@ -260,19 +260,31 @@ def test_whisper_model_cleans_interrupted_download(tmp_path: Path, monkeypatch) 
     incomplete = repository_cache_path("large-v3", tmp_path) / "blobs" / "model.incomplete"
     incomplete.parent.mkdir(parents=True)
     incomplete.write_bytes(b"partial")
+    online_attempts = []
+    messages = []
 
     def fake_download(_model_name, *, cache_dir, local_files_only):
         if local_files_only:
             raise LocalEntryNotFoundError("not cached")
+        online_attempts.append(cache_dir)
         raise OSError("network unavailable")
 
     monkeypatch.setattr("faster_whisper.utils.download_model", fake_download)
+    monkeypatch.setattr("daily_english.model_cache.time.sleep", lambda _seconds: None)
     try:
-        resolve_faster_whisper_model("large-v3", tmp_path)
+        resolve_faster_whisper_model(
+            "large-v3", tmp_path, lambda _percent, message: messages.append(message),
+        )
     except RuntimeError as error:
         assert "首次下载失败" in str(error)
+        assert "已重试 3 次" in str(error)
     else:
         raise AssertionError("Expected a failed first download")
+    assert len(online_attempts) == 3
+    assert messages[-2:] == [
+        "large-v3 模型下载连接失败，正在重试（1/3）…",
+        "large-v3 模型下载连接失败，正在重试（2/3）…",
+    ]
     assert not incomplete.exists()
 
 

@@ -30,7 +30,7 @@ dist\每日英语听力资源助手\每日英语听力资源助手.exe
 
 ## 构建单文件安装程序
 
-安装程序面向普通用户分发，目标电脑不需要 Git 或 Python。它包含桌面程序、独立 Argos 运行时、英译中和中译英模型；Whisper 模型仍按需下载并缓存在用户目录。
+安装程序面向普通用户分发，目标电脑不需要 Git 或 Python。它包含桌面程序、独立 Argos 运行时、英译中和中译英模型，以及默认 Whisper `small` 模型；`medium` 和 `large-v3` 仍按需下载并缓存在用户目录。
 
 首次准备构建环境：
 
@@ -52,13 +52,13 @@ winget install --id JRSoftware.InnoSetup -e --source winget
 installer-output\DailyEnglishResourceAssistant-Setup-<版本>.exe
 ```
 
-`build_installer.ps1` 会依次构建主程序、精简的 Argos Python 3.10 独立运行时，再调用 Inno Setup 编译安装包。若两个中间产物已经存在，可用：
+`build_installer.ps1` 会依次构建主程序、精简的 Argos Python 3.10 独立运行时、检查或下载默认 Whisper `small` 模型，再调用 Inno Setup 编译安装包。若两个程序中间产物已经存在，可用：
 
 ```powershell
 .\build_installer.ps1 -SkipApplicationBuild -SkipArgosBuild
 ```
 
-版本默认读取 `pyproject.toml`，也可用 `-Version 0.1.0` 指定。Inno Setup 的命令行编译器会从常见的当前用户或系统安装目录自动查找；找不到时脚本会给出安装命令。
+版本默认读取 `pyproject.toml`，也可用 `-Version 0.1.1` 指定。Inno Setup 的命令行编译器会从常见的当前用户或系统安装目录自动查找；找不到时脚本会给出安装命令。
 
 安装版默认写入：
 

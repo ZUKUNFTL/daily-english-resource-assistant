@@ -10,7 +10,22 @@ $applicationBuild = Join-Path $projectRoot "dist\每日英语听力资源助手\
 $argosBuild = Join-Path $projectRoot "build\installer-runtime\argos_translate\argos_translate.exe"
 $argosModels = Join-Path $projectRoot "work\models\argos"
 $argosData = Join-Path $projectRoot "work\data\argos-translate"
+$whisperHubCache = Join-Path $projectRoot "work\cache\huggingface\hub"
+$whisperSmallCache = Join-Path $whisperHubCache "models--Systran--faster-whisper-small"
 $installerScript = Join-Path $projectRoot "installer\daily_english_assistant.iss"
+
+function Test-WhisperSmallCache {
+    param([string]$RepositoryPath)
+    $mainReference = Join-Path $RepositoryPath "refs\main"
+    if (-not (Test-Path -LiteralPath $mainReference -PathType Leaf)) { return $false }
+    $revision = (Get-Content -LiteralPath $mainReference -Raw).Trim()
+    if ($revision -notmatch '^[0-9a-f]{40}$') { return $false }
+    $snapshot = Join-Path $RepositoryPath "snapshots\$revision"
+    foreach ($file in @("config.json", "model.bin", "tokenizer.json", "vocabulary.txt")) {
+        if (-not (Test-Path -LiteralPath (Join-Path $snapshot $file) -PathType Leaf)) { return $false }
+    }
+    return (Get-Item -LiteralPath (Join-Path $snapshot "model.bin")).Length -gt 100MB
+}
 
 if (-not $Version) {
     $projectFile = Get-Content -LiteralPath (Join-Path $projectRoot "pyproject.toml") -Raw
@@ -42,6 +57,20 @@ if (-not (Test-Path -LiteralPath $argosModels -PathType Container) -or -not (Get
 }
 if (-not (Test-Path -LiteralPath $argosData -PathType Container)) {
     throw "缺少 Argos 运行数据。请先运行一次 engine/setup_argos.ps1。"
+}
+
+if (-not (Test-WhisperSmallCache $whisperSmallCache)) {
+    $applicationPython = Join-Path $projectRoot ".venv\Scripts\python.exe"
+    if (-not (Test-Path -LiteralPath $applicationPython -PathType Leaf)) {
+        throw "缺少主程序 Python 环境，无法准备内置 small 模型。请先运行 setup_windows.ps1。"
+    }
+    Write-Host "Downloading the bundled faster-whisper small model..."
+    $env:DAILY_ENGLISH_WHISPER_CACHE = $whisperHubCache
+    & $applicationPython -c "import os; from faster_whisper.utils import download_model; print(download_model('small', cache_dir=os.environ['DAILY_ENGLISH_WHISPER_CACHE']))"
+    if ($LASTEXITCODE -ne 0) { throw "内置 small 模型下载失败。" }
+}
+if (-not (Test-WhisperSmallCache $whisperSmallCache)) {
+    throw "small 模型缓存不完整，无法构建可离线使用的安装包：$whisperSmallCache"
 }
 
 $isccCandidates = @(
