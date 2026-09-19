@@ -9,8 +9,21 @@ from daily_english.downloader import (
     safe_title, validate_download_url,
 )
 from daily_english.models import Caption, Project, ProjectStatus
-from daily_english.pipeline import CaptionPipeline, LocalTranslator
+from daily_english.model_cache import repository_cache_path
+from daily_english.pipeline import CaptionPipeline, LocalTranslator, resolve_faster_whisper_model
+from daily_english.processes import TaskCancelled
+from daily_english.references import read_reference_text, whisper_reference_prompt
+from daily_english import settings as application_settings
 from daily_english.subtitles import read_srt, validate, write_srt
+
+
+def test_powershell_scripts_use_windows_compatible_utf8_bom() -> None:
+    project_root = Path(__file__).resolve().parents[1]
+    scripts = sorted(project_root.glob("*.ps1")) + sorted((project_root / "engine").glob("*.ps1"))
+
+    assert scripts
+    for script in scripts:
+        assert script.read_bytes().startswith(b"\xef\xbb\xbf"), script
 
 
 def test_srt_round_trip(tmp_path: Path) -> None:
@@ -83,6 +96,19 @@ def test_library_persists_language_metadata(tmp_path: Path) -> None:
     assert loaded.target_language == "en"
     assert loaded.subtitle_order == "translated_first"
     assert loaded.alignment_enabled is True
+
+
+def test_library_recovers_interrupted_projects(tmp_path: Path) -> None:
+    database = LibraryDatabase(tmp_path / "recovery.sqlite3")
+    project = database.save_project(
+        Project(None, "Interrupted", status=ProjectStatus.PROCESSING)
+    )
+
+    assert database.recover_interrupted_projects() == 1
+    recovered = database.get_project(project.id)
+    assert recovered.status == ProjectStatus.FAILED
+    assert "重新加入处理队列" in recovered.error
+    assert database.recover_interrupted_projects() == 0
 
 
 class StubTranslator(LocalTranslator):
@@ -193,3 +219,203 @@ def test_engine_parses_model_download_and_stt_progress() -> None:
     percent, message = EngineRunner._progress_from_line("[STT_PROGRESS] 75.0% Faster-whisper [8]")
     assert percent == 70.0
     assert "75.0%" in message
+
+
+def test_frozen_app_describes_builtin_engine_as_ready(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+
+    status = EngineRunner(project_root=tmp_path).status()
+
+    assert status.available is False
+    assert "当前使用内置 faster-whisper + Argos Translate" in status.message
+    assert "可直接转写并生成双语字幕" in status.message
+    assert "setup_sidecar.ps1" not in status.message
+    assert "未安装 pyVideoTrans" not in status.message
+
+
+def test_source_app_explains_optional_sidecar_setup(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.delattr(sys, "frozen", raising=False)
+
+    status = EngineRunner(project_root=tmp_path).status()
+
+    assert status.available is False
+    assert "可选 sidecar" in status.message
+    assert "engine/setup_sidecar.ps1" in status.message
+
+
+def test_whisper_model_uses_local_cache_without_network(tmp_path: Path, monkeypatch) -> None:
+    calls = []
+    messages = []
+    snapshot = tmp_path / "snapshot"
+
+    def fake_download(model_name, *, cache_dir, local_files_only):
+        calls.append((model_name, Path(cache_dir), local_files_only))
+        return str(snapshot)
+
+    monkeypatch.setattr("faster_whisper.utils.download_model", fake_download)
+    resolved = resolve_faster_whisper_model(
+        "small", tmp_path, lambda _percent, message: messages.append(message),
+    )
+
+    assert resolved == snapshot
+    assert calls == [("small", tmp_path / "huggingface" / "hub", True)]
+    assert messages == ["已找到 small 模型，正在从本地缓存加载…"]
+
+
+def test_whisper_model_downloads_only_after_cache_miss(tmp_path: Path, monkeypatch) -> None:
+    from huggingface_hub.errors import LocalEntryNotFoundError
+
+    calls = []
+    messages = []
+    snapshot = tmp_path / "downloaded"
+
+    def fake_download(model_name, *, cache_dir, local_files_only):
+        calls.append(local_files_only)
+        if local_files_only:
+            raise LocalEntryNotFoundError("not cached")
+        return str(snapshot)
+
+    monkeypatch.setattr("faster_whisper.utils.download_model", fake_download)
+    resolved = resolve_faster_whisper_model(
+        "medium", tmp_path, lambda _percent, message: messages.append(message),
+    )
+
+    assert resolved == snapshot
+    assert calls == [True, False]
+    assert messages == ["本地没有 medium 模型，正在首次下载…"]
+
+
+def test_whisper_model_cleans_interrupted_download(tmp_path: Path, monkeypatch) -> None:
+    from huggingface_hub.errors import LocalEntryNotFoundError
+
+    incomplete = repository_cache_path("large-v3", tmp_path) / "blobs" / "model.incomplete"
+    incomplete.parent.mkdir(parents=True)
+    incomplete.write_bytes(b"partial")
+    online_attempts = []
+    messages = []
+
+    def fake_download(_model_name, *, cache_dir, local_files_only):
+        if local_files_only:
+            raise LocalEntryNotFoundError("not cached")
+        online_attempts.append(cache_dir)
+        raise OSError("network unavailable")
+
+    monkeypatch.setattr("faster_whisper.utils.download_model", fake_download)
+    monkeypatch.setattr("daily_english.model_cache.time.sleep", lambda _seconds: None)
+    try:
+        resolve_faster_whisper_model(
+            "large-v3", tmp_path, lambda _percent, message: messages.append(message),
+        )
+    except RuntimeError as error:
+        assert "首次下载失败" in str(error)
+        assert "已重试 3 次" in str(error)
+    else:
+        raise AssertionError("Expected a failed first download")
+    assert len(online_attempts) == 3
+    assert messages[-2:] == [
+        "large-v3 模型下载连接失败，正在重试（1/3）…",
+        "large-v3 模型下载连接失败，正在重试（2/3）…",
+    ]
+    assert not incomplete.exists()
+
+
+def test_reference_text_is_read_and_prompt_is_bounded(tmp_path: Path) -> None:
+    reference = tmp_path / "reference.txt"
+    reference.write_text("OpenAI terminology.\n" * 300, encoding="utf-8")
+
+    text = read_reference_text(reference)
+    prompt = whisper_reference_prompt(text, max_characters=120)
+    assert "OpenAI terminology" in prompt
+    assert len(prompt) <= 120
+
+
+def test_reference_text_rejects_empty_document(tmp_path: Path) -> None:
+    reference = tmp_path / "empty.txt"
+    reference.write_text("   \n", encoding="utf-8")
+    try:
+        read_reference_text(reference)
+    except ValueError as error:
+        assert "没有可提取" in str(error)
+    else:
+        raise AssertionError("Expected an empty reference document to be rejected")
+
+
+def test_transcribe_passes_reference_text_to_whisper(tmp_path: Path, monkeypatch) -> None:
+    media = tmp_path / "sample.mp4"
+    media.write_bytes(b"media")
+    reference = tmp_path / "reference.txt"
+    reference.write_text("The speaker is called Ada Lovelace.", encoding="utf-8")
+    captured: dict[str, object] = {}
+
+    class FakeWhisperModel:
+        def __init__(self, model_path, **kwargs):
+            captured["model_path"] = model_path
+
+        def transcribe(self, media_path, **kwargs):
+            captured.update(kwargs)
+            return (
+                [types.SimpleNamespace(start=0.0, end=1.0, text="Ada Lovelace")],
+                types.SimpleNamespace(duration=1.0, language="en"),
+            )
+
+    runner = types.SimpleNamespace(
+        root=tmp_path,
+        data_root=tmp_path,
+        cache_root=tmp_path / "work" / "cache",
+        temporary_root=tmp_path / "work" / "tmp",
+        status=lambda: types.SimpleNamespace(available=False),
+    )
+    monkeypatch.setattr("faster_whisper.WhisperModel", FakeWhisperModel)
+    monkeypatch.setattr(
+        "daily_english.pipeline.resolve_faster_whisper_model",
+        lambda *args, **kwargs: tmp_path / "cached-model",
+    )
+    project = Project(
+        None, "Reference", media_path=str(media), reference_path=str(reference),
+        source_language="en",
+    )
+    CaptionPipeline(runner=runner).transcribe(project)
+
+    assert captured["initial_prompt"] == "The speaker is called Ada Lovelace."
+    assert "参考文稿辅助" in project.subtitle_source
+
+
+def test_cancelled_pipeline_stops_before_work() -> None:
+    project = Project(None, "Cancelled", media_path="missing.mp4")
+    try:
+        CaptionPipeline().transcribe(project, cancel_requested=lambda: True)
+    except TaskCancelled:
+        pass
+    else:
+        raise AssertionError("Expected cancellation before transcription")
+
+
+def test_file_pickers_remember_purpose_and_shared_directories(tmp_path: Path, monkeypatch) -> None:
+    settings_path = tmp_path / "settings.json"
+    media_directory = tmp_path / "media"
+    export_directory = tmp_path / "exports"
+    media_directory.mkdir()
+    export_directory.mkdir()
+    media_file = media_directory / "sample.mp4"
+    media_file.write_bytes(b"video")
+    monkeypatch.setattr(application_settings, "SETTINGS_PATH", settings_path)
+    monkeypatch.setattr(application_settings, "APP_DIR", tmp_path)
+
+    application_settings.remember_last_path(media_file, "media")
+    assert application_settings.last_directory("media") == str(media_directory.resolve())
+    assert application_settings.last_directory("subtitle") == str(media_directory.resolve())
+
+    application_settings.remember_last_path(export_directory, "export")
+    assert application_settings.last_directory("export") == str(export_directory.resolve())
+    assert application_settings.last_directory("media") == str(media_directory.resolve())
+    assert application_settings.last_directory("subtitle") == str(export_directory.resolve())
+
+
+def test_boolean_setting_is_persisted(tmp_path: Path, monkeypatch) -> None:
+    settings_path = tmp_path / "settings.json"
+    monkeypatch.setattr(application_settings, "SETTINGS_PATH", settings_path)
+    monkeypatch.setattr(application_settings, "APP_DIR", tmp_path)
+
+    assert application_settings.bool_setting("open_export_folder_after_export", True)
+    application_settings.set_setting("open_export_folder_after_export", False)
+    assert not application_settings.bool_setting("open_export_folder_after_export", True)

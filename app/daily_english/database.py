@@ -149,3 +149,19 @@ class LibraryDatabase:
         with closing(self._connect()) as connection:
             rows = connection.execute("SELECT id FROM projects ORDER BY updated_at DESC, id DESC").fetchall()
         return [self.get_project(row["id"]) for row in rows]
+
+    def recover_interrupted_projects(self) -> int:
+        """Mark unfinished work from a previous app session as retryable."""
+        with closing(self._connect()) as connection:
+            cursor = connection.execute(
+                """UPDATE projects
+                SET status=?, error=?, updated_at=CURRENT_TIMESTAMP
+                WHERE status=?""",
+                (
+                    ProjectStatus.FAILED.value,
+                    "上次运行期间任务被中断，可以重新加入处理队列。",
+                    ProjectStatus.PROCESSING.value,
+                ),
+            )
+            connection.commit()
+            return cursor.rowcount
