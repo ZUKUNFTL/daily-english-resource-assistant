@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$Python310 = "py -3.10"
 )
 

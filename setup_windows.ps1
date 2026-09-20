@@ -1,4 +1,4 @@
-param(
+﻿param(
     [ValidateSet("3.11", "3.12", "3.13")]
     [string]$PythonVersion = "3.13",
     [switch]$BuildExe

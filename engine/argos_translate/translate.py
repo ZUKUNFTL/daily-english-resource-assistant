@@ -1,7 +1,18 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
+import types
+
+
+if os.environ.get("ARGOS_CHUNK_TYPE", "").upper() == "MINISBD":
+    # Argos imports stanza even when the lightweight MiniSBD path is selected.
+    # A tiny placeholder keeps the standalone runtime from bundling stanza/torch;
+    # this branch is never used while ARGOS_CHUNK_TYPE remains MINISBD.
+    stanza_placeholder = types.ModuleType("stanza")
+    stanza_placeholder.Pipeline = None
+    sys.modules.setdefault("stanza", stanza_placeholder)
 
 from argostranslate import translate
 

@@ -11,6 +11,7 @@ class ProjectStatus(StrEnum):
     EXPORTED = "已导出"
     UPLOADED = "已上传"
     FAILED = "失败"
+    CANCELLED = "已取消"
 
 
 class DownloadStatus(StrEnum):
