@@ -638,6 +638,11 @@ class ImportTab(QWidget):
         layout.addWidget(scroll)
         self.title = QLineEdit(); self.author = QLineEdit(); self.url = QLineEdit()
         self.media = QLineEdit(); self.reference = QLineEdit(); self.subtitle = QLineEdit()
+        self._suggested_title = ""
+        self._title_edited_by_user = False
+        self.title.setPlaceholderText("选择媒体后自动使用文件名，可手动修改")
+        self.title.textEdited.connect(self._mark_title_edited)
+        self.media.editingFinished.connect(self._suggest_title_from_media_field)
         self.source_language = QComboBox(); self.source_language.addItem("自动检测", "auto"); self.source_language.addItem("中文", "zh-cn"); self.source_language.addItem("英语", "en")
         self.target_language = QComboBox(); self.target_language.addItem("英语", "en"); self.target_language.addItem("中文", "zh")
         self.source_language.currentIndexChanged.connect(self._update_target_language)
@@ -679,6 +684,23 @@ class ImportTab(QWidget):
         if index >= 0:
             self.target_language.setCurrentIndex(index)
 
+    def _mark_title_edited(self, _text: str) -> None:
+        self._title_edited_by_user = True
+
+    def _suggest_title_from_media_field(self) -> None:
+        media_path = self.media.text().strip()
+        if not media_path:
+            return
+        suggested_title = Path(media_path).stem.strip()
+        if not suggested_title:
+            return
+        current_title = self.title.text().strip()
+        if self._title_edited_by_user and current_title != self._suggested_title:
+            return
+        self._suggested_title = suggested_title
+        self._title_edited_by_user = False
+        self.title.setText(suggested_title)
+
     def _picker(self, field: QLineEdit, title: str, filter_text: str, purpose: str) -> QWidget:
         widget = QWidget(); row = QHBoxLayout(widget); row.setContentsMargins(0, 0, 0, 0); row.addWidget(field)
         button = QPushButton("选择"); button.clicked.connect(lambda: self.pick(field, title, filter_text, purpose)); row.addWidget(button); return widget
@@ -689,6 +711,8 @@ class ImportTab(QWidget):
         path, _ = QFileDialog.getOpenFileName(self, title, initial, filter_text)
         if path:
             field.setText(path)
+            if purpose == "media":
+                self._suggest_title_from_media_field()
             remember_last_path(path, purpose)
 
     def create_project(self) -> None:
@@ -815,6 +839,8 @@ class ImportTab(QWidget):
 
     def load_project(self, project: Project) -> None:
         self.title.setText(project.title)
+        self._suggested_title = ""
+        self._title_edited_by_user = True
         self.author.setText(project.author)
         self.url.setText(project.source_url)
         self.media.setText(project.media_path)

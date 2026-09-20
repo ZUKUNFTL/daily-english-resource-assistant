@@ -67,6 +67,32 @@ def test_import_form_resizes_and_scrolls() -> None:
     task_center.close()
 
 
+def test_import_media_filename_suggests_editable_title(tmp_path, monkeypatch) -> None:
+    task_center = TaskCenterTab()
+    tab = ImportTab(SimpleNamespace(task_center=task_center))
+    first_media = tmp_path / "Daily lesson.01.mp4"
+    second_media = tmp_path / "Another lesson.mp3"
+    selected = iter((str(first_media), str(second_media)))
+    monkeypatch.setattr(
+        "daily_english.ui.QFileDialog.getOpenFileName",
+        lambda *_args, **_kwargs: (next(selected), ""),
+    )
+    monkeypatch.setattr("daily_english.ui.remember_last_path", lambda *_args: None)
+
+    tab.pick(tab.media, "媒体文件", "音频或视频 (*.*)", "media")
+    assert tab.title.text() == "Daily lesson.01"
+
+    tab.title.setFocus()
+    tab.title.selectAll()
+    QTest.keyClicks(tab.title, "Custom title")
+    tab.pick(tab.media, "媒体文件", "音频或视频 (*.*)", "media")
+
+    assert tab.media.text() == str(second_media)
+    assert tab.title.text() == "Custom title"
+    tab.close()
+    task_center.close()
+
+
 def test_editor_has_open_export_folder_switch(monkeypatch) -> None:
     monkeypatch.setattr("daily_english.ui.bool_setting", lambda key, default: True)
     remembered: list[tuple[str, bool]] = []
